@@ -65,7 +65,7 @@ const strategies = {
               this.possibleTypesMap[type] = []
             }
 
-            if (result.data[alias] && result.data[alias].possibleTypes) {
+            if (result.data && result.data[alias] && result.data[alias].possibleTypes) {
               for (const { name } of result.data[alias].possibleTypes) {
                 this.possibleTypesMap[name] = this.possibleTypesMap[name] || []
 
