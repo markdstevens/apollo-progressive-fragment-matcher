@@ -1,11 +1,11 @@
-import { ApolloLink } from 'apollo-link'
-import invariant from 'invariant'
+import { ApolloLink } from 'apollo-link';
+import invariant from 'invariant';
 
-import { addTypeIntrospections } from './transform'
+import { addTypeIntrospections } from './transform';
 
 const defaultOptions = {
-  strategy: 'introspection' // 'introspection' | 'extension'
-}
+  strategy: 'introspection', // 'introspection' | 'extension'
+};
 
 const strategies = {
   /**
@@ -15,26 +15,26 @@ const strategies = {
    * Downsides: requires server contol (add extension).
    */
   extension: {
-    link () {
+    link() {
       return new ApolloLink((operation, forward) => {
         // enable possible types fetching.
-        operation.extensions.possibleTypes = true
+        operation.extensions.possibleTypes = true;
 
-        return forward(operation).map(result => {
+        return forward(operation).map((result) => {
           if (result.extensions && result.extensions.possibleTypes) {
-            const types = result.extensions.possibleTypes
+            const types = result.extensions.possibleTypes;
 
             for (let type in types) {
               if (types.hasOwnProperty(type) && !this.possibleTypesMap[type]) {
-                this.possibleTypesMap[type] = types[type]
+                this.possibleTypesMap[type] = types[type];
               }
             }
           }
 
-          return result
-        })
-      })
-    }
+          return result;
+        });
+      });
+    },
   },
 
   /**
@@ -44,94 +44,87 @@ const strategies = {
    * Downsides: query manipulation (might be slow).
    */
   introspection: {
-    link () {
+    link() {
       return new ApolloLink((operation, forward) => {
-        const originalQuery = operation.query
+        const originalQuery = operation.query;
 
         const { types, query } = addTypeIntrospections(originalQuery, {
-          possibleTypes: this.possibleTypesMap
-        })
+          possibleTypes: this.possibleTypesMap,
+        });
 
-        operation.query = query
+        operation.query = query;
 
         // enable possible types fetching.
-        return forward(operation).map(result => {
-          operation.query = originalQuery
+        return forward(operation).map((result) => {
+          operation.query = originalQuery;
 
           for (const type of types) {
-            const alias = `__${type}__`
+            const alias = `__${type}__`;
 
             if (!this.possibleTypesMap[type]) {
-              this.possibleTypesMap[type] = []
+              this.possibleTypesMap[type] = [];
             }
 
-            if (result.data[alias] && result.data[alias].possibleTypes) {
+            if (result.data && result.data[alias] && result.data[alias].possibleTypes) {
               for (const { name } of result.data[alias].possibleTypes) {
-                this.possibleTypesMap[name] = this.possibleTypesMap[name] || []
+                this.possibleTypesMap[name] = this.possibleTypesMap[name] || [];
 
                 if (!this.possibleTypesMap[name].includes(type)) {
-                  this.possibleTypesMap[name].push(type)
+                  this.possibleTypesMap[name].push(type);
                 }
               }
             }
           }
 
-          return result
-        })
-      })
-    }
-  }
-}
+          return result;
+        });
+      });
+    },
+  },
+};
 
 export class ProgressiveFragmentMatcher {
-  constructor (options) {
-    const { strategy: name } = { ...defaultOptions, ...options }
+  constructor(options) {
+    const { strategy: name } = { ...defaultOptions, ...options };
 
     if (!strategies[name]) {
       const strategyNames = Object.keys(strategies)
-        .map(name => `"${name}"`)
-        .join(', ')
+        .map((name) => `"${name}"`)
+        .join(', ');
 
-      throw new Error(
-        `ProgressiveFragmentMatcher: unknown strategy "${name}" (must be one of ${strategyNames}).`
-      )
+      throw new Error(`ProgressiveFragmentMatcher: unknown strategy "${name}" (must be one of ${strategyNames}).`);
     }
 
-    const strategy = strategies[name]
+    const strategy = strategies[name];
 
     // initiate type map.
-    this.possibleTypesMap = {}
-    this.match = this.match.bind(this)
+    this.possibleTypesMap = {};
+    this.match = this.match.bind(this);
 
     // set strategy based methods.
-    this.link = strategy.link.bind(this)
+    this.link = strategy.link.bind(this);
   }
 
-  match (idValue, typeCondition, context) {
-    const obj = context.store.get(idValue.id)
+  match(idValue, typeCondition, context) {
+    const obj = context.store.get(idValue.id);
 
     if (!obj) {
       // https://github.com/apollographql/apollo-client/pull/4620
-      return idValue.id === 'ROOT_QUERY'
+      return idValue.id === 'ROOT_QUERY';
     }
 
-    invariant(
-      obj.__typename,
-      `Cannot match fragment because __typename property is missing: ${JSON.stringify(
-        obj
-      )}`
-    )
+    invariant(obj.__typename, `Cannot match fragment because __typename property is missing: ${JSON.stringify(obj)}`);
 
     if (obj.__typename === typeCondition) {
-      return true
+      return true;
     }
 
-    const possibleTypes = this.possibleTypesMap[obj.__typename]
+    const possibleTypes = this.possibleTypesMap[obj.__typename];
 
     if (possibleTypes && possibleTypes.indexOf(typeCondition) > -1) {
-      return true
+      return true;
     }
 
-    return false
+    return false;
   }
 }
